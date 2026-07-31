@@ -13,6 +13,13 @@
 ;;;;                          package (see cl-cc docs/notes/repo-split-design.md
 ;;;;                          §5-1)
 
+;;; This form comes first, before any defsystem. ASDF binds *package* to
+;;; ASDF-USER only for a file it loads itself; read any other way -- a REPL
+;;; `load`, an editor evaluating the buffer, flake.nix parsing :version -- the
+;;; file is read in whatever package happens to be current. Saying it makes the
+;;; file self-contained.
+(in-package #:asdf-user)
+
 (asdf:defsystem "cl-cc-bootstrap"
   :description "Pre-interned bootstrap symbols and the backend registration protocol for the cl-cc Common Lisp compiler"
   :author "takeokunn <bararararatty@gmail.com>"
@@ -27,7 +34,10 @@
   :serial t
   :components ((:file "package")
                (:file "runtime-helpers")
-               (:file "backend-protocol")))
+               (:file "backend-protocol"))
+  ;; Without this, `asdf:test-system "cl-cc-bootstrap"` succeeds while running
+  ;; zero tests.
+  :in-order-to ((test-op (test-op "cl-cc-bootstrap/test"))))
 
 (asdf:defsystem "cl-cc-bootstrap/test"
   :description "Test suite for cl-cc-bootstrap"

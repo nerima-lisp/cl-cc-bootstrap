@@ -53,8 +53,10 @@ would otherwise repeat: `t/backend-protocol-test.lisp` defines
 
 Pre-1.0: no API stability guarantee yet. Every exported symbol is
 documented (`api-reference.md`) and covered by the test suite; breaking
-changes are called out under `### Changed`/`### Removed` in `CHANGELOG.md`
-rather than silently shipped. Security issues go through
+changes are called out in the
+[GitHub release description](https://github.com/nerima-lisp/cl-cc-bootstrap/releases),
+which is this org's only canonical changelog, rather than silently shipped.
+Security issues go through
 [GitHub Security Advisories](https://github.com/nerima-lisp/cl-cc-bootstrap/security/advisories/new),
 not public issues -- see [Support](https://github.com/nerima-lisp/.github/blob/main/SUPPORT.md).
 
