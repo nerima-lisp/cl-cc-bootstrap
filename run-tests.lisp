@@ -13,6 +13,19 @@
 ;;;; An empty suite still fails: cl-cc-bootstrap/test's :perform passes
 ;;;; :pass-with-no-tests nil to cl-weave, so a run that registers zero tests
 ;;;; is an error rather than a pass.
+;;;;
+;;;; asdf:test-system is called on "cl-cc-bootstrap/test" itself, not on
+;;;; "cl-cc-bootstrap": ASDF only runs a system's own :perform (asdf:test-op
+;;;; ...) form, and the main system carries no :in-order-to linking it to its
+;;;; /test companion. Calling test-system on the main system's name would
+;;;; silently perform ASDF's do-nothing default test-op instead.
+;;;;
+;;;; The registry setup, the test run, and the final HOST-KIT:QUIT below are
+;;;; three separate top-level forms rather than one enclosing LET: SBCL reads
+;;;; a whole top-level form before evaluating any of it, so a HOST-KIT:QUIT
+;;;; nested inside the same form as the test-system call that loads
+;;;; cl-cc-bootstrap/test's cl-host-kit dependency would fail to read --
+;;;; the HOST-KIT package would not exist yet at that read.
 
 (require :asdf)
 
@@ -29,7 +42,8 @@
      (:tree ,root)
      :inherit-configuration)))
 
-(let ((root (script-directory)))
-  (configure-local-source-registry root)
-  (asdf:test-system "cl-cc-bootstrap")
-  (uiop:quit 0))
+(configure-local-source-registry (script-directory))
+
+(asdf:test-system "cl-cc-bootstrap/test")
+
+(host-kit:quit 0)

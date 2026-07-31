@@ -1,5 +1,5 @@
 {
-  description = "cl-cc AST node types and protocol (ast-children, ast-bound-names)";
+  description = "Pre-interned bootstrap symbols and the backend registration protocol for the cl-cc Common Lisp compiler";
 
   inputs = {
     # nixos-unstable, not nixpkgs-unstable: it advances only after the NixOS
@@ -8,12 +8,39 @@
 
     # Pinned to a release tag. A bare `github:nerima-lisp/cl-weave` follows
     # that repository's default branch, so an upstream push to main would
-    # break this repository's CI without warning. This used to be a
-    # `flake = false` source tree handed to the runner through an environment
-    # variable; it is a normal flake input now, which is what lets ASDF find
-    # cl-weave through CL_SOURCE_REGISTRY like any other dependency.
+    # break this repository's CI without warning.
     cl-weave = {
-      url = "github:nerima-lisp/cl-weave/v1.0.0";
+      url = "github:nerima-lisp/cl-weave/v1.0.1";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # Test-only: host-kit:quit, called by run-tests.lisp in place of
+    # uiop:quit. Same pin-to-release-tag rule as cl-weave above.
+    cl-host-kit = {
+      url = "github:nerima-lisp/cl-host-kit/v0.2.1";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # The org flake preset. Everything this file used to spell out by hand --
+    # the `.asd` version extraction, `forAllSystems`, the treefmt eval wired to
+    # both `formatter` and `checks.formatting`, the mkdocs package plus its
+    # check, the run-tests.lisp gate, and the `apps.test`/`apps.default` pair
+    # -- is one `mkPackageFlake` call below. Pinned to a release TAG, never to
+    # the branch: a bare `github:nerima-lisp/cl-nix-forge` follows that
+    # repository's default branch and would change this build without
+    # warning.
+    #
+    # cl-weave's own `v1.0.1` release predates its cl-nix-forge migration, so
+    # its `packages.default` is a hand-built, non-cl-nix-forge derivation with
+    # no `.ancestry` -- not safe to hand to `lispCheckDependencies`, which
+    # walks that attribute during dependency dedup. cl-host-kit's `v0.2.1` IS
+    # built by cl-nix-forge and would qualify, but matching the two check
+    # dependencies to one mechanism keeps this file's story simple rather than
+    # encoding "why these two otherwise-identical dependencies are wired in
+    # differently" -- both are named on `CL_SOURCE_REGISTRY` as raw source
+    # trees instead, exactly as cl-host-kit's own flake.nix does for cl-weave.
+    cl-nix-forge = {
+      url = "github:nerima-lisp/cl-nix-forge/v0.4.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -27,11 +54,15 @@
     inputs@{
       self,
       nixpkgs,
+      cl-nix-forge,
       cl-weave,
+      cl-host-kit,
       treefmt-nix,
       ...
     }:
     let
+      lib = nixpkgs.lib;
+
       # Only platforms that something actually verifies are declared.
       # x86_64-linux is what CI runs; aarch64-darwin is the development
       # machine, so it is verified on every local `nix flake check`. Dropping
@@ -42,133 +73,162 @@
         "x86_64-linux"
         "aarch64-darwin"
       ];
-      forAllSystems = nixpkgs.lib.genAttrs systems;
 
-      # CL_SOURCE_REGISTRY for the test, coverage and dev environments.
-      sourceRegistry = "${cl-weave}//:${self}//";
+      # CL_SOURCE_REGISTRY for the check-enabled derivation (checks.default,
+      # apps.test, devShells.default) and for the hand-rolled coverage check
+      # below. Both cl-weave and cl-host-kit are test-only -- neither enters
+      # `packages.cl-cc-bootstrap`'s closure -- so they are named here rather
+      # than through `lispCheckDependencies`; see the `cl-nix-forge` input
+      # comment above for why.
+      testSourceRegistry = "${cl-weave}/:${cl-host-kit}/";
 
-      # Single source of truth for the package version: the `:version` form in
-      # cl-cc-bootstrap.asd. A release only ever edits the .asd file and every Nix
-      # package (default + docs) follows automatically. Nix regexes are
-      # whole-string anchored and `.` never spans newlines, so the version is
-      # extracted line-by-line rather than with one multi-line match.
-      version =
-        let
-          lines = nixpkgs.lib.splitString "\n" (builtins.readFile ./cl-cc-bootstrap.asd);
-          versionLine = builtins.head (
-            builtins.filter (line: builtins.match "[[:space:]]*:version \"[^\"]*\"" line != null) lines
-          );
-        in
-        builtins.head (builtins.match "[[:space:]]*:version \"([^\"]*)\"" versionLine);
+      testTimeoutSeconds = 120;
+      coverageTimeoutSeconds = 180;
+      timeoutGraceSeconds = 15;
 
-      # treefmt drives `nix fmt` and the `checks.<system>.formatting` gate.
-      # Scope is Nix only: nixfmt (RFC-style) is a zero-footgun, low-diff
-      # formatter, whereas YAML formatters mangle the GitHub Actions `on:`
-      # key and Markdown reformatting would churn the whole docs tree.
-      treefmtEval = forAllSystems (
-        system:
-        treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} {
-          projectRootFile = "flake.nix";
-          programs.nixfmt.enable = true;
-        }
-      );
+      # `lispDerivation`'s fasl output translation is an identity mapping
+      # ("/:/", i.e. beside the source it compiled) -- correct for the
+      # package's own writable, freshly-unpacked build tree, but cl-weave and
+      # cl-host-kit's entries on `CL_SOURCE_REGISTRY` (`testSourceRegistry`
+      # above) are immutable Nix store paths, and ASDF cannot write a `.fasl`
+      # there. Only a check that actually loads them (`checks.default`,
+      # `apps.test`) needs this override; `packages.cl-cc-bootstrap` never
+      # loads either, so its own "source plus fasls side by side" contract
+      # stays untouched. `checks.coverage` above already sets its own `$HOME`
+      # instead, which ASDF's default output-translations resolves through a
+      # `~/.cache/common-lisp/...` mirror -- the same effect, reached the way
+      # cl-weave's own flake.nix reaches it.
+      writableFaslOutputTranslationsPrefix = ''
+        export ASDF_OUTPUT_TRANSLATIONS="(:output-translations (t \"$TMPDIR/fasl-cache/\") :ignore-inherited-configuration)"
+        mkdir -p "$TMPDIR/fasl-cache"
+      '';
     in
-    {
-      packages = forAllSystems (
-        system:
+    cl-nix-forge.lib.${builtins.head systems}.mkPackageFlake {
+      inherit self systems nixpkgs;
+      pname = "cl-cc-bootstrap";
+
+      # The ONLY place a version comes from; there is deliberately no
+      # `version` argument on this preset.
+      asd = ./cl-cc-bootstrap.asd;
+
+      meta = {
+        description = "Pre-interned bootstrap symbols and the backend registration protocol for the cl-cc Common Lisp compiler";
+        homepage = "https://github.com/nerima-lisp/cl-cc-bootstrap";
+        license = lib.licenses.mit;
+        platforms = lib.platforms.unix;
+      };
+
+      root = ./.;
+
+      # No `lispDependencies`: `cl-cc-bootstrap.asd`'s main system depends on
+      # nothing, which is the entire point of this repository (see the .asd's
+      # own header comment). cl-weave and cl-host-kit reach `t/` only, through
+      # `packageArgs`'s registry entry below.
+      packageArgs = _: {
+        CL_SOURCE_REGISTRY = testSourceRegistry;
+      };
+
+      timeoutSeconds = testTimeoutSeconds;
+      killAfterSeconds = timeoutGraceSeconds;
+
+      # Rendered documentation site (Material for MkDocs), built fully
+      # offline and gated `--strict` by `checks.docs`.
+      docs = {
+        root = ./docs;
+      };
+
+      # ONE treefmt evaluation drives `nix fmt` and the `checks.formatting`
+      # gate, so the formatter and CI can never disagree about what
+      # "formatted" means. Scope is Nix only, per PACKAGE_STANDARD.md's
+      # default: nixfmt (RFC-style) is a zero-footgun, low-diff formatter,
+      # whereas YAML formatters mangle the GitHub Actions `on:` key and
+      # Markdown reformatting would churn the whole docs tree.
+      treefmt = {
+        evalModule = treefmt-nix.lib.evalModule;
+      };
+
+      # `checks.coverage`: cl-weave's own delivered CLI (not
+      # `ctx.cl.mkCoverageReport`), run with `--coverage` against a writable
+      # copy of the source -- the store path itself is read-only, and the CLI
+      # writes its coverage output and report next to the system it ran.
+      # Mirrors the pattern cl-weave's own flake.nix and cl-prolog's
+      # apps.test use: `cl-weave run <system>/test --coverage`.
+      #
+      # package.lisp is excluded (by the store path FIND-SYSTEM actually
+      # resolved, not a path under this derivation's writable copy --
+      # --coverage-exclude matches on the exact pathname ASDF loaded). Its
+      # own EVAL-WHEN guards a DEFPACKAGE with (unless (find-package :cl-cc)
+      # ...), which never re-executes once :cl-cc already exists from an
+      # earlier, uninstrumented load in the same coverage run -- reporting 0%
+      # for a manifest that unqualifiedly does run, not for untested logic.
+      #
+      # 95% is the real, currently-reachable floor, not a loosened target
+      # (measured at 96.9% as of this writing). The remaining gap is entirely
+      # the same class of sb-cover limitation around declarative, non-runtime
+      # forms: IN-PACKAGE and a DEFVAR's own top-level form report unexecuted
+      # even though the file plainly loaded and the special plainly got
+      # SETF'd across many tests; a DEFSTRUCT slot spec such as (closure-p
+      # (constantly nil) :type function) reports its wrapping spec as
+      # unexecuted while sb-cover correctly marks the nested (constantly nil)
+      # itself as executed, because the spec is data the DEFSTRUCT macro
+      # consumes at compile time, not an expression that runs. None of this is
+      # untested logic -- it dropped from a 12% gap to a ~3% one not because
+      # these forms became instrumentable, but because
+      # CALL-WITH-BACKEND-REGISTRATION and DEFINE-CAPABILITY-STRUCT added
+      # real, fully-tested logic that dilutes their fixed, per-file overhead.
+      extraOutputs =
+        ctx:
         let
-          pkgs = nixpkgs.legacyPackages.${system};
-        in
-        rec {
-          cl-cc-bootstrap = pkgs.sbcl.buildASDFSystem {
-            pname = "cl-cc-bootstrap";
-            inherit version;
-            src = self;
-            systems = [ "cl-cc-bootstrap" ];
-          };
-          default = cl-cc-bootstrap;
-
-          # Rendered documentation site (Material for MkDocs).
-          # Build fully offline: Material for MkDocs bundles all of its assets,
-          # so no network access is required inside the Nix sandbox. --strict
-          # promotes broken links and unlisted pages to build failures.
-        }
-      );
-
-      # `nix fmt` entry point.
-      formatter = forAllSystems (system: treefmtEval.${system}.config.build.wrapper);
-
-      # Granularity lives here, NOT in extra GitHub Actions jobs: `nix flake
-      # check` evaluates each attribute as its own derivation, in parallel,
-      # with build caching. Add a check here rather than a job in ci.yml.
-      checks = forAllSystems (
-        system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
+          pkgs = ctx.pkgs;
         in
         {
-          default =
-            pkgs.runCommand "cl-cc-bootstrap-tests"
+          checks.coverage =
+            pkgs.runCommand "cl-cc-bootstrap-coverage"
               {
                 nativeBuildInputs = [
                   pkgs.sbcl
                   pkgs.coreutils
                 ];
-                CL_SOURCE_REGISTRY = sourceRegistry;
+                # `${self}//` (the immutable, unfiltered flake input) has to be
+                # on the registry here, not just cl-weave/cl-host-kit: FIND-
+                # SYSTEM resolves "cl-cc-bootstrap" through the FIRST matching
+                # tree it sees, and `--coverage-exclude` below names a path
+                # under `${self}` -- so the pathname FIND-SYSTEM resolves and
+                # the pathname the exclude flag names must be the same tree.
+                # Without this, package.lisp resolves through the writable
+                # `source` copy instead, the exclude silently stops matching,
+                # and package.lisp's declarative-only forms (see below) drag
+                # the percentage down by double digits.
+                CL_SOURCE_REGISTRY = "${testSourceRegistry}:${self}//";
               }
               ''
                 export HOME="$TMPDIR/home"
-                mkdir -p "$HOME" "$out"
-                timeout 120 sbcl --script ${self}/run-tests.lisp
-                touch "$out/passed"
+                mkdir -p "$HOME"
+                cp -r ${self} source
+                chmod -R u+w source
+                cd source
+                timeout ${toString coverageTimeoutSeconds} ${cl-weave.packages.${ctx.system}.default}/bin/cl-weave \
+                  run cl-cc-bootstrap/test \
+                  --coverage \
+                  --coverage-output cl-cc-bootstrap.coverage \
+                  --coverage-report-directory cl-cc-bootstrap-coverage-report/ \
+                  --coverage-system cl-cc-bootstrap \
+                  --coverage-exclude ${self}/src/package.lisp \
+                  --coverage-min-expression 95 \
+                  --coverage-min-branch 95
+                mkdir -p "$out"
+                cp -r cl-cc-bootstrap-coverage-report "$out/report"
+                cp cl-cc-bootstrap.coverage "$out/"
               '';
+        };
 
-          # Fails `nix flake check` when any tracked file is unformatted,
-          # turning the formatter into an enforced CI gate.
-          formatting = treefmtEval.${system}.config.build.check self;
-
-        }
-      );
-
-      apps = forAllSystems (
-        system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-          test = pkgs.writeShellApplication {
-            name = "cl-cc-bootstrap-test";
-            runtimeInputs = [
-              pkgs.sbcl
-              pkgs.coreutils
-            ];
-            text = ''
-              export CL_SOURCE_REGISTRY="${sourceRegistry}"
-              exec timeout 120 sbcl --script ${self}/run-tests.lisp
-            '';
-          };
-        in
-        {
-          default = {
-            type = "app";
-            program = "${test}/bin/cl-cc-bootstrap-test";
-          };
-          test = {
-            type = "app";
-            program = "${test}/bin/cl-cc-bootstrap-test";
-          };
-        }
-      );
-
-      devShells = forAllSystems (
-        system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-        in
-        {
-          default = pkgs.mkShell {
-            packages = [ pkgs.sbcl ];
-            CL_SOURCE_REGISTRY = sourceRegistry;
-          };
-        }
-      );
+      # See `writableFaslOutputTranslationsPrefix` above: `checks.default` is
+      # the one preset-generated output that loads cl-weave and cl-host-kit,
+      # so it is the one that needs the writable-fasl override.
+      overrideOutputs = ctx: {
+        checks.default = ctx.generated.checks.default.overrideAttrs (old: {
+          checkPhase = writableFaslOutputTranslationsPrefix + old.checkPhase;
+        });
+      };
     };
 }
