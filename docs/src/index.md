@@ -17,8 +17,8 @@ nothing.
 (cl-cc/backend-protocol:register-backend :my-language (make-instance 'my-backend))
 ```
 
-See [Installation](installation.md) and [Quick Start](quick-start.md) to get
-going, or jump straight to the [API Reference](api-reference.md).
+See [Getting Started](getting-started.md) to get going, or jump straight to
+the [API Reference](reference/api.md).
 
 ## What's here
 

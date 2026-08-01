@@ -5,15 +5,28 @@ repo_url: https://github.com/nerima-lisp/cl-cc-bootstrap
 docs_dir: src
 site_dir: ../site
 
+# Also passed as --strict by packages.docs. Writing it here as well means
+# `mkdocs serve` applies the same gate, so no invocation path silently
+# tolerates a broken link. Use `mkdocs serve --no-strict` while editing.
+strict: true
+
 theme:
   name: material
 
 plugins:
   - search
 
+# Every page under docs/src/ must appear here: --strict fails the build on an
+# unlisted page. The five sections and the guide/ reference/ project/ split
+# are fixed by DOCS_STANDARD.md; there is no guide/ page yet, so that section
+# is omitted rather than stubbed.
 nav:
   - Home: index.md
-  - Installation: installation.md
-  - Quick Start: quick-start.md
-  - API Reference: api-reference.md
-  - Development: development.md
+  - Getting Started: getting-started.md
+  - Reference:
+      - API: reference/api.md
+  - Project:
+      - Development: project/development.md
+
+not_in_nav: |
+  notes/
