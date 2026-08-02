@@ -63,19 +63,17 @@
     let
       lib = nixpkgs.lib;
 
-      # CI builds and tests only x86_64-linux, so that is the sole declared
-      # system: the flake never advertises a platform it does not verify.
-      # aarch64-darwin was dropped on 2026-08-01. Its only verification was a
-      # local `nix flake check` on a development machine, and a run nobody can
-      # tell was skipped is not a gate. aarch64-linux and x86_64-darwin were
-      # already undeclared for the same reason.
-      #
-      # Consequence, accepted deliberately: mkPackageFlake generates every
-      # per-system output -- packages, checks, apps AND devShells -- from this
-      # one list, so `nix develop` and `nix build` no longer work on macOS.
-      # Development happens on Linux. See PACKAGE_STANDARD.md, "systems".
+      # x86_64-linux is what CI gates; aarch64-darwin is the development
+      # machine. Every per-system output -- packages, checks, apps AND devShells
+      # -- comes from this one list, so leaving aarch64-darwin out takes `nix
+      # build` and `nix develop` off the development machine as well. That trade
+      # was made on 2026-08-01 and reverted on 2026-08-02; aarch64-darwin carries
+      # no CI gate, which PACKAGE_STANDARD.md's "systems" section accepts
+      # explicitly. aarch64-linux and x86_64-darwin are nobody's verification and
+      # are not declared.
       systems = [
         "x86_64-linux"
+        "aarch64-darwin"
       ];
 
       # CL_SOURCE_REGISTRY for the check-enabled derivation (checks.default,
