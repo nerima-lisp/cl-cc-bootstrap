@@ -10,14 +10,14 @@
     # that repository's default branch, so an upstream push to main would
     # break this repository's CI without warning.
     cl-weave = {
-      url = "github:nerima-lisp/cl-weave/v1.0.1";
+      url = "github:nerima-lisp/cl-weave/v1.1.4";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # Test-only: host-kit:quit, called by run-tests.lisp in place of
     # uiop:quit. Same pin-to-release-tag rule as cl-weave above.
     cl-host-kit = {
-      url = "github:nerima-lisp/cl-host-kit/v0.2.1";
+      url = "github:nerima-lisp/cl-host-kit/v0.2.5";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
