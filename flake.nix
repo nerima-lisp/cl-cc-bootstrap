@@ -40,7 +40,7 @@
     # differently" -- both are named on `CL_SOURCE_REGISTRY` as raw source
     # trees instead, exactly as cl-host-kit's own flake.nix does for cl-weave.
     cl-nix-forge = {
-      url = "github:nerima-lisp/cl-nix-forge/v0.4.0";
+      url = "github:nerima-lisp/cl-nix-forge/v0.5.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
