@@ -153,7 +153,7 @@
       # `ctx.cl.mkCoverageReport`), run with `--coverage` against a writable
       # copy of the source -- the store path itself is read-only, and the CLI
       # writes its coverage output and report next to the system it ran.
-      # Mirrors the pattern cl-weave's own flake.nix and cl-prolog's
+      # Mirrors the pattern cl-weave's own flake.nix and cl-prolog-kit's
       # apps.test use: `cl-weave run <system>/test --coverage`.
       #
       # package.lisp is excluded (by the store path FIND-SYSTEM actually
