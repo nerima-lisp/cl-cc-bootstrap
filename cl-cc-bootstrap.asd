@@ -50,7 +50,8 @@
   :serial t
   :components ((:file "package")
                (:file "runtime-helpers-test")
-               (:file "backend-protocol-test"))
+               (:file "backend-protocol-test")
+               (:file "backend-registries-test"))
   ;; :perform's body is read as part of this one DEFSYSTEM form, before ASDF
   ;; has loaded :depends-on -- a literal CL-WEAVE:RUN-ALL here would fail to
   ;; read (the CL-WEAVE package does not exist yet at read time). FIND-SYMBOL

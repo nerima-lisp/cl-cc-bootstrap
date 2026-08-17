@@ -65,7 +65,19 @@
     ;; Must live in bootstrap so packages share the same symbols without conflict.
     ;; Implemented in runtime-helpers.lisp, which loads after this manifest.
     #:rt-plist-put
-    #:rt-slot-set))
+     #:rt-slot-set
+
+     ;; Load-time registries the frontends (cl-cc/php, cl-cc/javascript)
+     ;; populate and cl-cc/pipeline iterates, so the pipeline never has to
+     ;; name a backend or reach into its internals.
+     #:register-backend-bridge-provider
+     #:backend-bridge-providers
+     #:register-backend-vm-integration-installer
+     #:backend-vm-integration-installers
+     #:register-backend-global-seeder
+     #:backend-global-seeders
+     #:register-backend-parser
+     #:find-backend-parser))
 
 (defpackage :cl-cc/backend-protocol
   (:use :cl)
@@ -97,3 +109,56 @@
 (defvar *vm-macroexpand-hook-installer* nil)
 (defvar *vm-parse-forms-hook-installer* nil)
 
+(defvar *backend-bridge-providers* nil
+  "List of zero-argument thunks. Each thunk returns an alist of
+(SYMBOL . FUNCTION) VM host-bridge entries contributed by one backend.")
+
+(defun register-backend-bridge-provider (thunk)
+  "Register THUNK as a source of VM host-bridge entries for a backend."
+  (pushnew thunk *backend-bridge-providers*)
+  thunk)
+
+(defun backend-bridge-providers ()
+  "Return every host-bridge entry contributed by a registered backend."
+  (mapcan (lambda (thunk) (copy-list (funcall thunk))) *backend-bridge-providers*))
+
+(defvar *backend-vm-integration-installers* nil
+  "List of zero-argument thunks, each installing one backend's JS/PHP-callback
+<->VM-closure integration into that backend's runtime specials.")
+
+(defun register-backend-vm-integration-installer (thunk)
+  "Register THUNK, which installs one backend's VM/closure integration."
+  (pushnew thunk *backend-vm-integration-installers*)
+  thunk)
+
+(defun backend-vm-integration-installers ()
+  "Return every registered VM-integration installer thunk."
+  (copy-list *backend-vm-integration-installers*))
+
+(defvar *backend-global-seeders* nil
+  "List of one-argument functions, each seeding a backend's prelude globals
+into a VM STATE's global table.")
+
+(defun register-backend-global-seeder (fn)
+  "Register FN, a function of one argument (a VM state), as a backend's
+prelude-global seeder."
+  (pushnew fn *backend-global-seeders*)
+  fn)
+
+(defun backend-global-seeders ()
+  "Return every registered backend global-seeder function."
+  (copy-list *backend-global-seeders*))
+
+(defvar *backend-parsers* nil
+  "Alist of (LANGUAGE-KEYWORD . PARSE-FUNCTION) registered by backends.")
+
+(defun register-backend-parser (language fn)
+  "Register FN as the source parser for LANGUAGE (a keyword such as
+:javascript or :php), replacing any earlier registration for that language."
+  (setf *backend-parsers*
+        (acons language fn (remove language *backend-parsers* :key #'car)))
+  fn)
+
+(defun find-backend-parser (language)
+  "Return the parse function registered for LANGUAGE, or NIL."
+  (cdr (assoc language *backend-parsers*)))
