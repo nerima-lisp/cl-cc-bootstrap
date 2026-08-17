@@ -10,7 +10,7 @@
 ;;;;
 ;;;; Why a separate package?
 ;;;;   cl-cc/optimize's egraph rewrite rules (egraph-rules.lisp) use binop/const/var/cmp/... as Prolog pattern atoms
-;;;;   matched via cl-prolog:UNIFY.
+;;;;   matched via cl-prolog-kit:UNIFY.
 ;;;;   cl-cc/compile defines our-eval, called back by the compiler pipeline at runtime.
 ;;;;   Without a common bootstrap these subsystems would need to import from
 ;;;;   :cl-cc, which loads *after* them — creating a circular dependency.
