@@ -10,14 +10,14 @@
     # that repository's default branch, so an upstream push to main would
     # break this repository's CI without warning.
     cl-weave = {
-      url = "github:nerima-lisp/cl-weave/v1.1.4";
+      url = "github:nerima-lisp/cl-weave/v1.4.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # Test-only: host-kit:quit, called by run-tests.lisp in place of
     # uiop:quit. Same pin-to-release-tag rule as cl-weave above.
     cl-host-kit = {
-      url = "github:nerima-lisp/cl-host-kit/v0.2.5";
+      url = "github:nerima-lisp/cl-host-kit/v0.3.1";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -40,7 +40,7 @@
     # differently" -- both are named on `CL_SOURCE_REGISTRY` as raw source
     # trees instead, exactly as cl-host-kit's own flake.nix does for cl-weave.
     cl-nix-forge = {
-      url = "github:nerima-lisp/cl-nix-forge/v0.5.0";
+      url = "github:nerima-lisp/cl-nix-forge/v0.6.1";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
