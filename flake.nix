@@ -243,8 +243,9 @@
                                (when (and (equal (pathname-type pathname) "lisp")
                                           (probe-file pathname))
                                  (setf (gethash (namestring pathname) paths) t)))
-                             (dolist (child (asdf:component-children component))
-                               (collect-component child))))
+                             (when (typep component 'asdf:module)
+                               (dolist (child (asdf:component-children component))
+                                 (collect-component child)))))
                     (collect-component (asdf:find-system "cl-cc-bootstrap/test")))
                   (with-open-file (stream "asdf-test-components.list"
                                           :direction :output
