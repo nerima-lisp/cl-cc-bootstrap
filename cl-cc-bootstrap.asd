@@ -59,4 +59,5 @@
   ;; :perform body actually runs, by which point CL-WEAVE is loaded.
   :perform (asdf:test-op (op system)
              (declare (ignore op system))
-             (funcall (find-symbol "RUN-ALL" "CL-WEAVE") :pass-with-no-tests nil)))
+             (unless (funcall (find-symbol "RUN-ALL" "CL-WEAVE") :pass-with-no-tests nil)
+               (error "cl-cc-bootstrap tests failed."))))
