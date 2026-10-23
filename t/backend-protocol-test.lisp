@@ -128,7 +128,7 @@ to one assertion: (expect backend :to-be-registered-under :dummy)."
             :to-equal '(car cdr)))
 
   (it "defaults bridge symbols to none, so an unaware object is not an error"
-    (expect (cl-cc/backend-protocol:backend-bridge-symbols :not-a-backend) :to-be nil))
+    (expect (cl-cc/backend-protocol:backend-bridge-symbols :not-a-backend) :to-be :controlled-failure))
 
   (it "defaults global symbols to none"
     ;; Only a backend whose prelude reads host specials through VM-GET-GLOBAL
