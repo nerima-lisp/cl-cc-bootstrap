@@ -40,7 +40,7 @@
     # differently" -- both are named on `CL_SOURCE_REGISTRY` as raw source
     # trees instead, exactly as cl-host-kit's own flake.nix does for cl-weave.
     cl-nix-forge = {
-      url = "github:nerima-lisp/cl-nix-forge/v0.6.1";
+      url = "github:nerima-lisp/cl-nix-forge/v0.7.1";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -172,6 +172,7 @@
       extraOutputs =
         ctx:
         let
+          cl = ctx.cl;
           pkgs = ctx.pkgs;
         in
         {
@@ -214,58 +215,25 @@
                 cp cl-cc-bootstrap.coverage "$out/"
               '';
 
-          checks.orphan-tests =
-            pkgs.runCommand "cl-cc-bootstrap-orphan-tests"
-              {
-                nativeBuildInputs = [
-                  pkgs.sbcl
-                  pkgs.findutils
-                  pkgs.coreutils
-                ];
-              }
-              ''
-                set -euo pipefail
-                export LC_ALL=C
-                # Every Lisp source under t/ belongs to the test system, including support files.
-                find "${self}/t" -type f -name '*.lisp' -print | sort > test-sources.list
-                if [ ! -s test-sources.list ]; then
-                  echo "No ASDF test sources found under t/; an empty test tree is invalid" >&2
-                  exit 1
-                fi
+          checks.feature-lint = cl.mkFeatureLintCheck {
+            src = ./.;
+            featureDefinitions = "nix/feature-dependencies.sexp";
+            glossary = "docs/src/reference/glossary.md";
+            glossaryHeadingPrefix = "## ";
+            exportSurface = "t/export-surface.txt";
+            mode = "transition";
+            legacyInternalRefs = "t/legacy-internal-refs.sexp";
+            forbiddenNames = [ "phases" "misc" "utils" "helpers" ];
+            numberedPrefixes = [ "FR-" "W" ];
+            packagePrefix = "cl-cc/bootstrap/";
+            infraSuffix = "/infra";
+          };
 
-                cat > check-orphan-tests.lisp <<'LISP'
-                (require :asdf)
-                (push #p"${self}/" asdf:*central-registry*)
-
-                (let ((paths (make-hash-table :test #'equal)))
-                  (labels ((collect-component (component)
-                             (let ((pathname (asdf:component-pathname component)))
-                               (when (and (equal (pathname-type pathname) "lisp")
-                                          (probe-file pathname))
-                                 (setf (gethash (namestring pathname) paths) t)))
-                             (when (typep component 'asdf:module)
-                               (dolist (child (asdf:component-children component))
-                                 (collect-component child)))))
-                    (collect-component (asdf:find-system "cl-cc-bootstrap/test")))
-                  (with-open-file (stream "asdf-test-components.list"
-                                          :direction :output
-                                          :if-exists :supersede)
-                    (dolist (path (sort (loop for path being the hash-keys of paths
-                                              collect path)
-                                        #'string<))
-                      (write-line path stream))))
-                LISP
-
-                sbcl --noinform --script check-orphan-tests.lisp
-                comm -23 test-sources.list asdf-test-components.list > orphan-tests.list
-                if [ -s orphan-tests.list ]; then
-                  echo "Lisp sources under t/ are not ASDF test components:" >&2
-                  cat orphan-tests.list >&2
-                  exit 1
-                fi
-
-                mkdir -p "$out"
-              '';
+          checks.orphan-tests = cl.mkOrphanTestCheck {
+            src = ./.;
+            testRoots = [ "t" ];
+            testSystems = [ "cl-cc-bootstrap/test" ];
+          };
         };
 
       # See `writableFaslOutputTranslationsPrefix` above: `checks.default` is
