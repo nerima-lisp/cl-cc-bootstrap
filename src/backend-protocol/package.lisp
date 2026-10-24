@@ -28,86 +28,29 @@
                      #:vm-integration-remove-global
                      #:install-backend-vm-integration))
 
-(defpackage :cl-cc/bootstrap
-            (:use :cl)
-            (:import-from :cl-cc/bootstrap/symbols
-                          #:our-eval
-                          #:our-load
-                          #:run-string-repl
-                          #:*vm-runtime-callable-installer*
-                          #:*runtime-vm-callable-register-hook*
-                          #:*runtime-package-registry-provider*
-                          #:*runtime-find-package-fn*
-                          #:*runtime-intern-fn*
-                          #:*runtime-set-symbol-value-fn*
-                          #:*vm-eval-hook-installer*
-                          #:*vm-macroexpand-hook-installer*
-                          #:*vm-parse-forms-hook-installer*
-                          #:binop
-                          #:const
-                          #:var
-                          #:cmp
-                          #:integer-type
-                          #:boolean-type
-                          #:env-lookup
-                          #:make-cst-token
-                          #:lexer-token-p
-                          #:lexer-token-type
-                          #:lexer-token-value
-                          #:backquote
-                          #:unquote
-                          #:unquote-splicing
-                          #:rt-plist-put
-                          #:rt-slot-set)
-            (:import-from :cl-cc/bootstrap/backend-protocol
-                          #:register-backend-bridge-provider
-                          #:backend-bridge-providers
-                          #:register-backend-vm-integration-installer
-                          #:backend-vm-integration-installers
-                          #:register-backend-global-seeder
-                          #:backend-global-seeders
-                          #:register-backend-parser
-                          #:find-backend-parser
-                          #:register-backend-input-validator
-                          #:find-backend-input-validator)
-            (:export #:our-eval
-                     #:our-load
-                     #:run-string-repl
-                     #:*vm-runtime-callable-installer*
-                     #:*runtime-vm-callable-register-hook*
-                     #:*runtime-package-registry-provider*
-                     #:*runtime-find-package-fn*
-                     #:*runtime-intern-fn*
-                     #:*runtime-set-symbol-value-fn*
-                     #:*vm-eval-hook-installer*
-                     #:*vm-macroexpand-hook-installer*
-                     #:*vm-parse-forms-hook-installer*
-                     #:binop
-                     #:const
-                     #:var
-                     #:cmp
-                     #:integer-type
-                     #:boolean-type
-                     #:env-lookup
-                     #:make-cst-token
-                     #:lexer-token-p
-                     #:lexer-token-type
-                     #:lexer-token-value
-                     #:backquote
-                     #:unquote
-                     #:unquote-splicing
-                     #:rt-plist-put
-                     #:rt-slot-set
-                     #:register-backend-bridge-provider
-                     #:backend-bridge-providers
-                     #:register-backend-vm-integration-installer
-                     #:backend-vm-integration-installers
-                     #:register-backend-global-seeder
-                     #:backend-global-seeders
-                     #:register-backend-parser
-                     #:find-backend-parser
-                     #:register-backend-input-validator
-                     #:find-backend-input-validator))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (cl:import '(cl-cc/bootstrap/backend-protocol:register-backend-bridge-provider
+               cl-cc/bootstrap/backend-protocol:backend-bridge-providers
+               cl-cc/bootstrap/backend-protocol:register-backend-vm-integration-installer
+               cl-cc/bootstrap/backend-protocol:backend-vm-integration-installers
+               cl-cc/bootstrap/backend-protocol:register-backend-global-seeder
+               cl-cc/bootstrap/backend-protocol:backend-global-seeders
+               cl-cc/bootstrap/backend-protocol:register-backend-parser
+               cl-cc/bootstrap/backend-protocol:find-backend-parser
+               cl-cc/bootstrap/backend-protocol:register-backend-input-validator
+               cl-cc/bootstrap/backend-protocol:find-backend-input-validator)
+             :cl-cc/bootstrap)
+  (cl:export '(cl-cc/bootstrap/backend-protocol:register-backend-bridge-provider
+               cl-cc/bootstrap/backend-protocol:backend-bridge-providers
+               cl-cc/bootstrap/backend-protocol:register-backend-vm-integration-installer
+               cl-cc/bootstrap/backend-protocol:backend-vm-integration-installers
+               cl-cc/bootstrap/backend-protocol:register-backend-global-seeder
+               cl-cc/bootstrap/backend-protocol:backend-global-seeders
+               cl-cc/bootstrap/backend-protocol:register-backend-parser
+               cl-cc/bootstrap/backend-protocol:find-backend-parser
+               cl-cc/bootstrap/backend-protocol:register-backend-input-validator
+               cl-cc/bootstrap/backend-protocol:find-backend-input-validator)
+             :cl-cc/bootstrap))
 
 (defpackage :cl-cc/backend-protocol
             (:use :cl)
