@@ -1,9 +1,5 @@
 (in-package :cl-cc/bootstrap/backend-protocol)
 
-(defvar *registered-backends*
-  '()
-  "Alist of (LANGUAGE . BACKEND), most recently registered first.")
-
 (defun call-with-backend-registration (language backend registered replaced)
   "Register BACKEND under LANGUAGE, replacing any previous registration, then
 dispatch on whether one existed, by continuation.

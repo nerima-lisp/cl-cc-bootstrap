@@ -31,7 +31,7 @@
                 :components ((:file "package")))
                (:module "backend-protocol"
                 :serial t
-                :components ((:file "package")
+                :components ((:file "package") (:file "state")
                              (:file "registry")
                              (:file "protocol"))))
   ;; Without this, `asdf:test-system "cl-cc-bootstrap"` succeeds while running

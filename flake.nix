@@ -147,28 +147,17 @@
       # Mirrors the pattern cl-weave's own flake.nix and cl-prolog-kit's
       # apps.test use: `cl-weave run <system>/test --coverage`.
       #
-      # package.lisp is excluded (by the store path FIND-SYSTEM actually
-      # resolved, not a path under this derivation's writable copy --
-      # --coverage-exclude matches on the exact pathname ASDF loaded). Its
-      # own EVAL-WHEN guards a DEFPACKAGE with (unless (find-package :cl-cc)
-      # ...), which never re-executes once :cl-cc already exists from an
-      # earlier, uninstrumented load in the same coverage run -- reporting 0%
-      # for a manifest that unqualifiedly does run, not for untested logic.
+      # The root and feature package files contain DEFPACKAGE forms, and
+      # backend-protocol/state.lisp contains only DEFVAR declarations. SB-COVER
+      # reports these load-time declarations as unexecuted top-level forms;
+      # excluding those exact files keeps the threshold focused on executable
+      # source. The store path is used because FIND-SYSTEM resolves the
+      # immutable flake input, and --coverage-exclude matches the exact pathname
+      # ASDF loaded rather than this derivation's writable copy.
       #
-      # 95% is the real, currently-reachable floor, not a loosened target
-      # (measured at 96.9% as of this writing). The remaining gap is entirely
-      # the same class of sb-cover limitation around declarative, non-runtime
-      # forms: IN-PACKAGE and a DEFVAR's own top-level form report unexecuted
-      # even though the file plainly loaded and the special plainly got
-      # SETF'd across many tests; a DEFSTRUCT slot spec such as (closure-p
-      # (constantly nil) :type function) reports its wrapping spec as
-      # unexecuted while sb-cover correctly marks the nested (constantly nil)
-      # itself as executed, because the spec is data the DEFSTRUCT macro
-      # consumes at compile time, not an expression that runs. None of this is
-      # untested logic -- it dropped from a 12% gap to a ~3% one not because
-      # these forms became instrumentable, but because
-      # CALL-WITH-BACKEND-REGISTRATION and DEFINE-CAPABILITY-STRUCT added
-      # real, fully-tested logic that dilutes their fixed, per-file overhead.
+      # 95% remains the expression and branch floor. Functional source files
+      # retain their IN-PACKAGE form; SB-COVER reports that form as unexecuted,
+      # so it remains the fixed per-file coverage overhead.
       extraOutputs =
         ctx:
         let
@@ -208,6 +197,9 @@
                   --coverage-report-directory cl-cc-bootstrap-coverage-report/ \
                   --coverage-system cl-cc-bootstrap \
                   --coverage-exclude ${self}/src/package.lisp \
+                  --coverage-exclude ${self}/src/symbols/package.lisp \
+                  --coverage-exclude ${self}/src/backend-protocol/package.lisp \
+                  --coverage-exclude ${self}/src/backend-protocol/state.lisp \
                   --coverage-min-expression 95 \
                   --coverage-min-branch 95
                 mkdir -p "$out"
