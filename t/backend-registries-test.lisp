@@ -1,17 +1,5 @@
-;;;; t/backend-registries-test.lisp — the load-time registries cl-cc/pipeline
-;;;; and the language frontends depend on.
-;;;;
-;;;; These four registries are the older, thunk-based half of the backend
-;;;; boundary; cl-cc/backend-protocol is the newer object-based half. Both are
-;;;; live: cl-cc/pipeline calls FIND-BACKEND-PARSER, and cl-cc/php and
-;;;; cl-cc/javascript call the REGISTER-* functions at load time.
-;;;;
-;;;; They exist here because they were once deleted as "dead code superseded by
-;;;; backend-protocol.lisp and never referenced anywhere in this repository" —
-;;;; true of this repository alone, false of the three repositories that call
-;;;; them, none of which had a test here to say so. That is what these tests
-;;;; are for: a deletion should fail loudly in this suite, not silently in a
-;;;; consumer's build weeks later.
+;;;; The pipeline and language frontends consume the parser and callback
+;;;; registries. The tests also cover parsed-form validator registration and lookup.
 
 (in-package :cl-cc-bootstrap/test)
 
@@ -52,8 +40,6 @@
     (expect (cl-cc/bootstrap:find-backend-parser :nobody) :to-be nil))
 
   (it "replaces rather than shadows on re-registration"
-    ;; Frontends register at load time, so reloading one must not leave two
-    ;; parsers for the same language behind.
     (let ((second (lambda (source) (values source :second))))
       (cl-cc/bootstrap:register-backend-parser :php (lambda (source) source))
       (cl-cc/bootstrap:register-backend-parser :php second)
@@ -64,6 +50,31 @@
     (let ((php (lambda (source) source)))
       (cl-cc/bootstrap:register-backend-parser :php php)
       (expect (cl-cc/bootstrap:find-backend-parser :javascript) :to-be nil))))
+
+(describe-sequential "backend input validators"
+  (before-each
+    (setf cl-cc/bootstrap::*backend-input-validators* nil))
+
+  (it "returns the validator registered for a language"
+    (let ((validator (lambda (forms) forms)))
+      (cl-cc/bootstrap:register-backend-input-validator :php validator)
+      (expect (cl-cc/bootstrap:find-backend-input-validator :php)
+              :to-be validator)))
+
+  (it "returns nil for an unregistered language"
+    (expect (cl-cc/bootstrap:find-backend-input-validator :nobody) :to-be nil))
+
+  (it "replaces rather than shadows on re-registration"
+    (let ((second (lambda (forms) forms)))
+      (cl-cc/bootstrap:register-backend-input-validator :php (lambda (forms) forms))
+      (cl-cc/bootstrap:register-backend-input-validator :php second)
+      (expect (cl-cc/bootstrap:find-backend-input-validator :php) :to-be second)
+      (expect (length cl-cc/bootstrap::*backend-input-validators*) :to-be 1)))
+
+  (it "keeps one language validator out of another"
+    (let ((php (lambda (forms) forms)))
+      (cl-cc/bootstrap:register-backend-input-validator :php php)
+      (expect (cl-cc/bootstrap:find-backend-input-validator :javascript) :to-be nil))))
 
 (describe-sequential "backend vm-integration installers"
   (before-each
