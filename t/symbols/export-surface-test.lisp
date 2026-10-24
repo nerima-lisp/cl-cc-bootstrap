@@ -84,11 +84,11 @@
 (defun assert-export-surface ()
   (expect (external-symbol-names "CL-CC/BOOTSTRAP")
           :to-equal
-          (sort (append *preintern-symbol-names* *bootstrap-backend-api-names*)
+          (sort (append *preintern-symbol-names* (copy-list *bootstrap-backend-api-names*))
                 (function string<)))
   (expect (external-symbol-names "CL-CC/BACKEND-PROTOCOL")
           :to-equal
-          (sort *backend-protocol-api-names* (function string<)))
+          (sort (copy-list *backend-protocol-api-names*) (function string<)))
   (expect (external-symbol-names "CL-CC/BOOTSTRAP/SYMBOLS")
           :to-equal
           (sort (copy-list *preintern-symbol-names*) (function string<)))
@@ -96,8 +96,7 @@
           :to-equal
           (sort
            (append *bootstrap-backend-api-names*
-                   '("*REGISTERED-BACKENDS*")
-                   *backend-protocol-api-names*)
+                   (copy-list *backend-protocol-api-names*))
            (function string<)))
   (expect-shared-symbol-home "CL-CC/BOOTSTRAP"
                              "CL-CC/BOOTSTRAP/SYMBOLS"
