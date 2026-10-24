@@ -67,9 +67,9 @@
     #:rt-plist-put
      #:rt-slot-set
 
-     ;; Load-time registries the frontends (cl-cc/php, cl-cc/javascript)
-     ;; populate and cl-cc/pipeline iterates, so the pipeline never has to
-     ;; name a backend or reach into its internals.
+     ;; PHP and JavaScript frontends register parsers and backend callbacks that
+     ;; the pipeline reads. The validator registry lets callers look up
+     ;; language-specific checks without naming a frontend package.
      #:register-backend-bridge-provider
      #:backend-bridge-providers
      #:register-backend-vm-integration-installer
@@ -77,6 +77,8 @@
      #:register-backend-global-seeder
      #:backend-global-seeders
      #:register-backend-parser
+     #:register-backend-input-validator
+     #:find-backend-input-validator
      #:find-backend-parser))
 
 (defpackage :cl-cc/backend-protocol
@@ -162,3 +164,18 @@ prelude-global seeder."
 (defun find-backend-parser (language)
   "Return the parse function registered for LANGUAGE, or NIL."
   (cdr (assoc language *backend-parsers*)))
+
+(defvar *backend-input-validators* nil
+  "Alist mapping backend language keywords to parsed-form validators.")
+
+(defun register-backend-input-validator (language fn)
+  "Register FN as the parsed-form validator for LANGUAGE. FN receives the
+top-level forms sequence returned by the parser. It signals an error to
+reject input; its return value is ignored."
+  (setf *backend-input-validators*
+        (acons language fn (remove language *backend-input-validators* :key #'car)))
+  fn)
+
+(defun find-backend-input-validator (language)
+  "Return the parsed-form validator registered for LANGUAGE, or NIL."
+  (cdr (assoc language *backend-input-validators*)))
