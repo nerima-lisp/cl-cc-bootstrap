@@ -31,7 +31,7 @@ then:
 
 | System | Purpose |
 | --- | --- |
-| `cl-cc-bootstrap` | The library: `package`, `runtime-helpers`, `backend-protocol`. Depends on nothing. |
+| `cl-cc-bootstrap` | The library: `package`, `symbols`, and `backend-protocol`. Depends on nothing. |
 | `cl-cc-bootstrap/test` | The test suite. Depends on `cl-cc-bootstrap`, [`cl-weave`](https://github.com/nerima-lisp/cl-weave), and [`cl-host-kit`](https://github.com/nerima-lisp/cl-host-kit) (test-only). |
 
 ## Register a backend
