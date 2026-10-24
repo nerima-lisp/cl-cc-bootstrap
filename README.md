@@ -16,20 +16,19 @@ nothing.
   calls to `rt-plist-put` and `rt-slot-set`, whose host implementations are
   installed by the `cl-cc-vm` bridge.
 - **`src/backend-protocol/`** — `cl-cc/backend-protocol`, the registry a
-  language backend registers itself with. It exists so `cl-cc/pipeline` never
-  names a backend's package: PHP and JavaScript answer for their own bridge
-  symbols and VM integration rather than being scanned from outside. See §5-1
-  of cl-cc's `docs/notes/repo-split-design.md`.
+  language backend registers itself with. The pipeline asks the registry for
+  backend capabilities without naming backend packages; each language backend
+  supplies its own VM bridge symbols and integration.
 
-It holds no VM code on purpose. The backend protocol has registry state, CPS
-lookup/registration functions, generic functions built on one shared
-`define-backend-hook` macro, and a capability struct built on
-`define-capability-struct`; the pipeline is the only participant that
-depends on `cl-cc/vm`, so calling `vm-register-host-bridge` stays there.
+It holds no VM code on purpose. The backend protocol provides registry
+operations, hooks with safe defaults, and a struct for optional VM
+capabilities. The pipeline is the only participant that depends on `cl-cc/vm`,
+so it alone calls `vm-register-host-bridge`.
 
 ## Quick Start
 
 ```lisp
+(require :asdf)
 (asdf:load-system "cl-cc-bootstrap")
 
 (defclass my-backend () ())
@@ -39,14 +38,22 @@ depends on `cl-cc/vm`, so calling `vm-register-host-bridge` stays there.
 (cl-cc/backend-protocol:register-backend :my-language (make-instance 'my-backend))
 ```
 
+This is an illustrative sketch; replace the example class, package, symbols,
+and language with those from your backend.
+
 ## Install
 
 ```sh
 nix build github:nerima-lisp/cl-cc-bootstrap
 ```
 
+The flake currently exposes Nix outputs for `x86_64-linux`; use plain ASDF on
+other hosts.
+
 or point `CL_SOURCE_REGISTRY` at a checkout and
-`(asdf:load-system "cl-cc-bootstrap")`.
+load it with `(require :asdf)` and `(asdf:load-system "cl-cc-bootstrap")`.
+See [Getting Started](docs/src/getting-started.md) for the source-registry
+setting.
 
 ## Documentation
 
@@ -74,6 +81,3 @@ Report vulnerabilities privately through
 [GitHub Security Advisories](https://github.com/nerima-lisp/cl-cc-bootstrap/security/advisories/new),
 not as public issues.
 
-## License
-
-MIT. See [LICENSE](LICENSE).

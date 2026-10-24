@@ -7,6 +7,9 @@ nix flake check    # tests + coverage + formatting + docs, the gate CI uses
 nix fmt            # format Nix sources (treefmt)
 ```
 
+These Nix development outputs target `x86_64-linux`; on other hosts, use the
+ASDF setup in [Getting Started](../getting-started.md).
+
 ## Test suite structure
 
 Tests live in feature directories under `t/` and run under

@@ -8,6 +8,7 @@ property: everything else in cl-cc may depend on them, and they depend on
 nothing.
 
 ```lisp
+(require :asdf)
 (asdf:load-system "cl-cc-bootstrap")
 
 (defclass my-backend () ())
@@ -16,6 +17,9 @@ nothing.
 
 (cl-cc/backend-protocol:register-backend :my-language (make-instance 'my-backend))
 ```
+
+This is an illustrative sketch; replace the example class, package, symbols,
+and language with those from your backend.
 
 See [Getting Started](getting-started.md) to get going, or jump straight to
 the [API Reference](reference/api.md).
