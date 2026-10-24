@@ -40,7 +40,7 @@
     # differently" -- both are named on `CL_SOURCE_REGISTRY` as raw source
     # trees instead, exactly as cl-host-kit's own flake.nix does for cl-weave.
     cl-nix-forge = {
-      url = "github:nerima-lisp/cl-nix-forge/v0.6.1";
+      url = "github:nerima-lisp/cl-nix-forge/v0.7.1";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -147,31 +147,21 @@
       # Mirrors the pattern cl-weave's own flake.nix and cl-prolog-kit's
       # apps.test use: `cl-weave run <system>/test --coverage`.
       #
-      # package.lisp is excluded (by the store path FIND-SYSTEM actually
-      # resolved, not a path under this derivation's writable copy --
-      # --coverage-exclude matches on the exact pathname ASDF loaded). Its
-      # own EVAL-WHEN guards a DEFPACKAGE with (unless (find-package :cl-cc)
-      # ...), which never re-executes once :cl-cc already exists from an
-      # earlier, uninstrumented load in the same coverage run -- reporting 0%
-      # for a manifest that unqualifiedly does run, not for untested logic.
+      # The root and feature package files contain DEFPACKAGE forms, and
+      # backend-protocol/state.lisp contains only DEFVAR declarations. SB-COVER
+      # reports these load-time declarations as unexecuted top-level forms;
+      # excluding those exact files keeps the threshold focused on executable
+      # source. The store path is used because FIND-SYSTEM resolves the
+      # immutable flake input, and --coverage-exclude matches the exact pathname
+      # ASDF loaded rather than this derivation's writable copy.
       #
-      # 95% is the real, currently-reachable floor, not a loosened target
-      # (measured at 96.9% as of this writing). The remaining gap is entirely
-      # the same class of sb-cover limitation around declarative, non-runtime
-      # forms: IN-PACKAGE and a DEFVAR's own top-level form report unexecuted
-      # even though the file plainly loaded and the special plainly got
-      # SETF'd across many tests; a DEFSTRUCT slot spec such as (closure-p
-      # (constantly nil) :type function) reports its wrapping spec as
-      # unexecuted while sb-cover correctly marks the nested (constantly nil)
-      # itself as executed, because the spec is data the DEFSTRUCT macro
-      # consumes at compile time, not an expression that runs. None of this is
-      # untested logic -- it dropped from a 12% gap to a ~3% one not because
-      # these forms became instrumentable, but because
-      # CALL-WITH-BACKEND-REGISTRATION and DEFINE-CAPABILITY-STRUCT added
-      # real, fully-tested logic that dilutes their fixed, per-file overhead.
+      # 95% remains the expression and branch floor. Functional source files
+      # retain their IN-PACKAGE form; SB-COVER reports that form as unexecuted,
+      # so it remains the fixed per-file coverage overhead.
       extraOutputs =
         ctx:
         let
+          cl = ctx.cl;
           pkgs = ctx.pkgs;
         in
         {
@@ -207,6 +197,9 @@
                   --coverage-report-directory cl-cc-bootstrap-coverage-report/ \
                   --coverage-system cl-cc-bootstrap \
                   --coverage-exclude ${self}/src/package.lisp \
+                  --coverage-exclude ${self}/src/symbols/package.lisp \
+                  --coverage-exclude ${self}/src/backend-protocol/package.lisp \
+                  --coverage-exclude ${self}/src/backend-protocol/state.lisp \
                   --coverage-min-expression 95 \
                   --coverage-min-branch 95
                 mkdir -p "$out"
@@ -214,58 +207,33 @@
                 cp cl-cc-bootstrap.coverage "$out/"
               '';
 
-          checks.orphan-tests =
-            pkgs.runCommand "cl-cc-bootstrap-orphan-tests"
-              {
-                nativeBuildInputs = [
-                  pkgs.sbcl
-                  pkgs.findutils
-                  pkgs.coreutils
-                ];
-              }
-              ''
-                set -euo pipefail
-                export LC_ALL=C
-                # Every Lisp source under t/ belongs to the test system, including support files.
-                find "${self}/t" -type f -name '*.lisp' -print | sort > test-sources.list
-                if [ ! -s test-sources.list ]; then
-                  echo "No ASDF test sources found under t/; an empty test tree is invalid" >&2
-                  exit 1
-                fi
+          checks.feature-lint = cl.mkFeatureLintCheck {
+            src = ./.;
+            featureDefinitions = "nix/feature-dependencies.sexp";
+            glossary = "docs/src/reference/glossary.md";
+            glossaryHeadingPrefix = "## ";
+            exportSurface = "t/export-surface.txt";
+            mode = "transition";
+            legacyInternalRefs = "t/legacy-internal-refs.sexp";
+            forbiddenNames = [
+              "phases"
+              "misc"
+              "utils"
+              "helpers"
+            ];
+            numberedPrefixes = [
+              "FR-"
+              "W"
+            ];
+            packagePrefix = "cl-cc/bootstrap/";
+            infraSuffix = "/infra";
+          };
 
-                cat > check-orphan-tests.lisp <<'LISP'
-                (require :asdf)
-                (push #p"${self}/" asdf:*central-registry*)
-
-                (let ((paths (make-hash-table :test #'equal)))
-                  (labels ((collect-component (component)
-                             (let ((pathname (asdf:component-pathname component)))
-                               (when (and (equal (pathname-type pathname) "lisp")
-                                          (probe-file pathname))
-                                 (setf (gethash (namestring pathname) paths) t)))
-                             (when (typep component 'asdf:module)
-                               (dolist (child (asdf:component-children component))
-                                 (collect-component child)))))
-                    (collect-component (asdf:find-system "cl-cc-bootstrap/test")))
-                  (with-open-file (stream "asdf-test-components.list"
-                                          :direction :output
-                                          :if-exists :supersede)
-                    (dolist (path (sort (loop for path being the hash-keys of paths
-                                              collect path)
-                                        #'string<))
-                      (write-line path stream))))
-                LISP
-
-                sbcl --noinform --script check-orphan-tests.lisp
-                comm -23 test-sources.list asdf-test-components.list > orphan-tests.list
-                if [ -s orphan-tests.list ]; then
-                  echo "Lisp sources under t/ are not ASDF test components:" >&2
-                  cat orphan-tests.list >&2
-                  exit 1
-                fi
-
-                mkdir -p "$out"
-              '';
+          checks.orphan-tests = cl.mkOrphanTestCheck {
+            src = ./.;
+            testRoots = [ "t" ];
+            testSystems = [ "cl-cc-bootstrap/test" ];
+          };
         };
 
       # See `writableFaslOutputTranslationsPrefix` above: `checks.default` is

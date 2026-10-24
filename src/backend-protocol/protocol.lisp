@@ -1,35 +1,4 @@
-;;;; backend-protocol.lisp — language backend registration
-;;;;
-;;;; Inverts the direction between the pipeline and the language backends.
-;;;;
-;;;; The pipeline used to reach into cl-cc/php and cl-cc/javascript directly:
-;;;; it knew their package names and their %PHP-/%JS- naming conventions, and
-;;;; scanned those packages itself to decide what to register as VM host
-;;;; bridges. That is a compile-time dependency from the orchestrator onto each
-;;;; backend's internals, and it is what stopped either backend from moving into
-;;;; its own repository -- an external package's internal symbols are not
-;;;; something a dependent can name.
-;;;;
-;;;; Here the dependency runs the other way. A backend registers itself and
-;;;; answers which of its own symbols it wants bridged; the pipeline asks the
-;;;; registry and never names a backend package. The graph becomes a Y:
-;;;;
-;;;;     cl-cc/php ─┐
-;;;;                ├─> cl-cc/backend-protocol <─ cl-cc/pipeline
-;;;;  cl-cc/js ─────┘
-;;;;
-;;;; This lives in bootstrap, the deepest system both backends and the pipeline
-;;;; already depend on, and deliberately holds no VM code: it is a registry and
-;;;; two generic functions. Actually calling VM-REGISTER-HOST-BRIDGE stays in
-;;;; the pipeline, which is the only participant that depends on cl-cc/vm.
-;;;;
-;;;; The DEFPACKAGE this file implements lives in package.lisp, the system's
-;;;; one manifest.
-
-(in-package :cl-cc/backend-protocol)
-
-(defvar *registered-backends* '()
-  "Alist of (LANGUAGE . BACKEND), most recently registered first.")
+(in-package :cl-cc/bootstrap/backend-protocol)
 
 (defun call-with-backend-registration (language backend registered replaced)
   "Register BACKEND under LANGUAGE, replacing any previous registration, then
@@ -42,17 +11,23 @@ backend system must not leave two entries for one language behind -- the
 registry update happens exactly once here regardless of which continuation
 runs."
   (let ((previous (cdr (assoc language *registered-backends*))))
-    (setf *registered-backends*
-          (cons (cons language backend)
-                (remove language *registered-backends* :key #'car)))
+    (setf *registered-backends* (cons (cons language backend)
+                                      (remove language
+                                              *registered-backends*
+                                              :key
+                                              #'car)))
     (if previous
         (funcall replaced backend previous)
         (funcall registered backend))))
 
 (defun register-backend (language backend)
   "Register BACKEND under LANGUAGE, replacing any previous registration."
-  (call-with-backend-registration
-   language backend #'identity (lambda (new old) (declare (ignore old)) new)))
+  (call-with-backend-registration language
+                                  backend
+                                  #'identity
+                                  (lambda (new old)
+                                    (declare (ignore old))
+                                    new)))
 
 (defun call-with-registered-backend (language found not-found)
   "Dispatch on whether LANGUAGE has a registered backend, by continuation.
@@ -90,18 +65,22 @@ expands to:
   `(defgeneric ,name ,lambda-list
      (:documentation ,documentation)
      (:method ,lambda-list
-       (declare (ignore ,@lambda-list))
-       ,default-form)))
+              (declare (ignore ,@lambda-list))
+              ,default-form)))
 
-(define-backend-hook backend-bridge-symbols (backend) '()
-  "Return the fbound symbols BACKEND wants callable from compiled code.
+(define-backend-hook backend-bridge-symbols
+                     (backend)
+                     '()
+                     "Return the fbound symbols BACKEND wants callable from compiled code.
 
 The VM host bridge is a whitelist, so a symbol the backend lowers calls to but
 does not list here is not callable. Each backend decides this for itself --
 knowing its own naming convention is the one thing it is certain to know.")
 
-(define-backend-hook backend-global-symbols (backend) '()
-  "Return the bound special variables BACKEND wants seeded into VM globals.
+(define-backend-hook backend-global-symbols
+                     (backend)
+                     '()
+                     "Return the bound special variables BACKEND wants seeded into VM globals.
 
 Only backends whose prelude reads host specials through VM-GET-GLOBAL need
 this; the default is none.")
@@ -121,7 +100,6 @@ this; the default is none.")
 ;;; read and write a VM global), and the backend supplies policy (what its
 ;;; callable values are, which of its specials hold the receiver, how a nested
 ;;; call restores the previous one). Neither needs the other's internals.
-
 (defmacro define-capability-struct (name documentation &rest capabilities)
   "Define NAME as a DEFSTRUCT of CAPABILITIES, every slot a function
 defaulting to a closure that always returns NIL.
@@ -137,21 +115,32 @@ expands to:
     \"...\"
     (closure-p (constantly nil) :type function)
     (call-closure (constantly nil) :type function))"
-  `(defstruct (,name (:conc-name ,(intern (format nil "~A-" name) (symbol-package name))))
+  `(defstruct
+       (,name
+        (:conc-name ,(intern (format nil "~A-" name) (symbol-package name))))
      ,documentation
-     ,@(mapcar (lambda (capability) `(,capability (constantly nil) :type function))
-               capabilities)))
+     ,@(mapcar
+        (lambda (capability)
+          `(,capability (constantly nil) :type function))
+        capabilities)))
 
 (define-capability-struct vm-integration
-    "VM capabilities offered to a backend. Every slot is a closure; a backend that
+                          "VM capabilities offered to a backend. Every slot is a closure; a backend that
 needs none of them simply does not implement INSTALL-BACKEND-VM-INTEGRATION.
 
 Each closure reads the current VM state when called rather than closing over one,
 so an integration installed once stays correct across VM invocations."
-  closure-p call-closure global-bound-p global-value set-global remove-global)
+                          closure-p
+                          call-closure
+                          global-bound-p
+                          global-value
+                          set-global
+                          remove-global)
 
-(define-backend-hook install-backend-vm-integration (backend integration) nil
-  "Give BACKEND the VM capabilities in INTEGRATION.
+(define-backend-hook install-backend-vm-integration
+                     (backend integration)
+                     nil
+                     "Give BACKEND the VM capabilities in INTEGRATION.
 
 Called once, after the backend's host runtime is loaded and before compiled code
 runs. Backends whose runtime never calls back into the VM need no method; the

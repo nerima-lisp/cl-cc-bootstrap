@@ -1,30 +1,18 @@
 (cl:in-package :cl-user)
 
-;;;; src/package.lisp — every DEFPACKAGE form this system defines
+;;;; src/package.lisp — bootstrap home-package manifest
 ;;;;
-;;;; A manifest, per the org's PACKAGE_STANDARD.md: no DEFPACKAGE lives
-;;;; anywhere else in this system, including cl-cc/backend-protocol's, below.
+;;;; The first ASDF component creates the early :cl-cc placeholder and the
+;;;; cl-cc/bootstrap package that owns symbols shared across compiler stages.
+;;;; Feature packages are declared in their source directories: see
+;;;; symbols/package.lisp and backend-protocol/package.lisp.
 ;;;;
-;;;; Phase 2 prerequisite: the 12 symbols that must be interned before
-;;;; cl-cc/optimize (egraph rules) and cl-cc/compile load.
+;;;; These names must be interned before cl-cc/optimize and cl-cc/compile load.
+;;;; A common home package lets those subsystems share the same symbols without
+;;;; importing them from :cl-cc, which loads later in the umbrella system.
 ;;;;
-;;;; Why a separate package?
-;;;;   cl-cc/optimize's egraph rewrite rules (egraph-rules.lisp) use binop/const/var/cmp/... as Prolog pattern atoms
-;;;;   matched via cl-prolog-kit:UNIFY.
-;;;;   cl-cc/compile defines our-eval, called back by the compiler pipeline at runtime.
-;;;;   Without a common bootstrap these subsystems would need to import from
-;;;;   :cl-cc, which loads *after* them — creating a circular dependency.
-;;;;
-;;;; Consumers:
-;;;;   cl-cc/optimize — (:use :cl :cl-cc/bootstrap :cl-cc/vm) [egraph rule pattern atoms]
-;;;;   cl-cc/compile  — (:use :cl ... :cl-cc/bootstrap)  [defines our-eval, our-load here]
-;;;;   cl-cc/parse    — (:use :cl ... :cl-cc/bootstrap)  [defines lexer-token-* here]
-;;;;   cl-cc/expand   — (:use :cl :cl-cc/bootstrap)       [references our-eval, our-load, run-string-repl]
-;;;;   cl-cc          — (:use ... :cl-cc/bootstrap)       [re-exports all]
-;;;;
-;;;; cl-cc/backend-protocol is implemented in backend-protocol.lisp; only its
-;;;; package declaration lives here, alongside cl-cc/bootstrap's.
-
+;;;; Consumers include cl-cc/optimize, cl-cc/compile, cl-cc/parse,
+;;;; cl-cc/expand, and the umbrella cl-cc package.
 (eval-when (:compile-toplevel :load-toplevel :execute)
   ;; Selfhost code can consult the umbrella package name before the full
   ;; umbrella definition is loaded. Create a minimal placeholder early so
@@ -34,148 +22,60 @@
       (:use :cl))))
 
 (defpackage :cl-cc/bootstrap
-  (:use :cl)
-  (:export
-   ;; Compiler re-entry point — defined in cl-cc/compile, called by the pipeline
-   #:our-eval
-   ;; REPL entry points — defined in cl-cc/compile; referenced in cl-cc/expand macro templates
-   ;; Must live in bootstrap so expand can reference them before compile loads.
-   #:our-load
-   #:run-string-repl
-    ;; VM bootstrap installers — defined in cl-cc/vm, consumed by runtime/parse/expand/selfhost
-    #:*vm-runtime-callable-installer*
-    #:*runtime-vm-callable-register-hook*
-    #:*runtime-package-registry-provider*
-    #:*runtime-find-package-fn*
-    #:*runtime-intern-fn*
-    #:*runtime-set-symbol-value-fn*
-    #:*vm-eval-hook-installer*
-    #:*vm-macroexpand-hook-installer*
-    #:*vm-parse-forms-hook-installer*
-   ;; Prolog type/relation predicate atoms (keys in *prolog-rules* fact DB)
-   #:binop #:const #:var #:cmp
-   #:integer-type #:boolean-type #:env-lookup
-   ;; CST token bridge — defined in cl-cc/parse, referenced in DCG rules
-   #:make-cst-token
-   #:lexer-token-p #:lexer-token-type #:lexer-token-value
-   ;; Quasiquote reader symbols — produced by cst.lisp, consumed by macro.lisp
-   ;; Both cl-cc/parse and cl-cc use bootstrap, so they share the same symbol objects.
-   #:backquote #:unquote #:unquote-splicing
-    ;; Runtime helpers — used by early parser/expander code before runtime is loaded.
-    ;; Must live in bootstrap so packages share the same symbols without conflict.
-    ;; Implemented in runtime-helpers.lisp, which loads after this manifest.
-    #:rt-plist-put
-     #:rt-slot-set
-
-     ;; PHP and JavaScript frontends register parsers and backend callbacks that
-     ;; the pipeline reads. The validator registry lets callers look up
-     ;; language-specific checks without naming a frontend package.
-     #:register-backend-bridge-provider
-     #:backend-bridge-providers
-     #:register-backend-vm-integration-installer
-     #:backend-vm-integration-installers
-     #:register-backend-global-seeder
-     #:backend-global-seeders
-     #:register-backend-parser
-     #:register-backend-input-validator
-     #:find-backend-input-validator
-     #:find-backend-parser))
-
-(defpackage :cl-cc/backend-protocol
-  (:use :cl)
-  (:export #:*registered-backends*
-           #:register-backend
-           #:call-with-backend-registration
-           #:registered-backend
-           #:call-with-registered-backend
-           #:backend-bridge-symbols
-           #:backend-global-symbols
-           #:vm-integration #:make-vm-integration #:vm-integration-p
-           #:vm-integration-closure-p
-           #:vm-integration-call-closure
-           #:vm-integration-global-bound-p
-           #:vm-integration-global-value
-           #:vm-integration-set-global
-           #:vm-integration-remove-global
-           #:install-backend-vm-integration))
+            (:use :cl)
+            (:export #:our-eval
+                     #:our-load
+                     #:run-string-repl
+                     #:*vm-runtime-callable-installer*
+                     #:*runtime-vm-callable-register-hook*
+                     #:*runtime-package-registry-provider*
+                     #:*runtime-find-package-fn*
+                     #:*runtime-set-symbol-value-fn*
+                     #:*vm-eval-hook-installer*
+                     #:*vm-macroexpand-hook-installer*
+                     #:*vm-parse-forms-hook-installer*
+                     #:binop
+                     #:const
+                     #:var
+                     #:cmp
+                     #:integer-type
+                     #:boolean-type
+                     #:env-lookup
+                     #:make-cst-token
+                     #:lexer-token-p
+                     #:lexer-token-type
+                     #:lexer-token-value
+                     #:backquote
+                     #:unquote
+                     #:unquote-splicing
+                     #:rt-plist-put
+                     #:rt-slot-set #:*runtime-intern-fn*))
 
 (in-package :cl-cc/bootstrap)
 
-(defvar *vm-runtime-callable-installer* nil)
-(defvar *runtime-vm-callable-register-hook* nil)
-(defvar *runtime-package-registry-provider* nil)
-(defvar *runtime-find-package-fn* nil)
-(defvar *runtime-intern-fn* nil)
-(defvar *runtime-set-symbol-value-fn* nil)
-(defvar *vm-eval-hook-installer* nil)
-(defvar *vm-macroexpand-hook-installer* nil)
-(defvar *vm-parse-forms-hook-installer* nil)
+(defvar *vm-runtime-callable-installer*
+  nil)
 
-(defvar *backend-bridge-providers* nil
-  "List of zero-argument thunks. Each thunk returns an alist of
-(SYMBOL . FUNCTION) VM host-bridge entries contributed by one backend.")
+(defvar *runtime-vm-callable-register-hook*
+  nil)
 
-(defun register-backend-bridge-provider (thunk)
-  "Register THUNK as a source of VM host-bridge entries for a backend."
-  (pushnew thunk *backend-bridge-providers*)
-  thunk)
+(defvar *runtime-package-registry-provider*
+  nil)
 
-(defun backend-bridge-providers ()
-  "Return every host-bridge entry contributed by a registered backend."
-  (mapcan (lambda (thunk) (copy-list (funcall thunk))) *backend-bridge-providers*))
+(defvar *runtime-find-package-fn*
+  nil)
 
-(defvar *backend-vm-integration-installers* nil
-  "List of zero-argument thunks, each installing one backend's JS/PHP-callback
-<->VM-closure integration into that backend's runtime specials.")
+(defvar *runtime-intern-fn*
+  nil)
 
-(defun register-backend-vm-integration-installer (thunk)
-  "Register THUNK, which installs one backend's VM/closure integration."
-  (pushnew thunk *backend-vm-integration-installers*)
-  thunk)
+(defvar *runtime-set-symbol-value-fn*
+  nil)
 
-(defun backend-vm-integration-installers ()
-  "Return every registered VM-integration installer thunk."
-  (copy-list *backend-vm-integration-installers*))
+(defvar *vm-eval-hook-installer*
+  nil)
 
-(defvar *backend-global-seeders* nil
-  "List of one-argument functions, each seeding a backend's prelude globals
-into a VM STATE's global table.")
+(defvar *vm-macroexpand-hook-installer*
+  nil)
 
-(defun register-backend-global-seeder (fn)
-  "Register FN, a function of one argument (a VM state), as a backend's
-prelude-global seeder."
-  (pushnew fn *backend-global-seeders*)
-  fn)
-
-(defun backend-global-seeders ()
-  "Return every registered backend global-seeder function."
-  (copy-list *backend-global-seeders*))
-
-(defvar *backend-parsers* nil
-  "Alist of (LANGUAGE-KEYWORD . PARSE-FUNCTION) registered by backends.")
-
-(defun register-backend-parser (language fn)
-  "Register FN as the source parser for LANGUAGE (a keyword such as
-:javascript or :php), replacing any earlier registration for that language."
-  (setf *backend-parsers*
-        (acons language fn (remove language *backend-parsers* :key #'car)))
-  fn)
-
-(defun find-backend-parser (language)
-  "Return the parse function registered for LANGUAGE, or NIL."
-  (cdr (assoc language *backend-parsers*)))
-
-(defvar *backend-input-validators* nil
-  "Alist mapping backend language keywords to parsed-form validators.")
-
-(defun register-backend-input-validator (language fn)
-  "Register FN as the parsed-form validator for LANGUAGE. FN receives the
-top-level forms sequence returned by the parser. It signals an error to
-reject input; its return value is ignored."
-  (setf *backend-input-validators*
-        (acons language fn (remove language *backend-input-validators* :key #'car)))
-  fn)
-
-(defun find-backend-input-validator (language)
-  "Return the parsed-form validator registered for LANGUAGE, or NIL."
-  (cdr (assoc language *backend-input-validators*)))
+(defvar *vm-parse-forms-hook-installer*
+  nil)
