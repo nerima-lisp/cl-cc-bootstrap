@@ -6,33 +6,29 @@
 Pre-interned bootstrap symbols and the backend registration protocol for the
 [cl-cc](https://github.com/nerima-lisp/cl-cc) Common Lisp compiler.
 
-Three things live here, and they share a system because they share one
+Two feature areas live here, and they share a system because they share one
 property: everything else in cl-cc may depend on them, and they depend on
 nothing.
 
-- **`src/package.lisp`** — a manifest: the `cl-cc/bootstrap` package and the
-  symbols `cl-cc/optimize` and `cl-cc/compile` must both see interned before
-  either package is defined. cl-cc compiles itself, so a symbol read in one
-  phase and written in another has to be the same symbol; interning it here,
-  first, is what makes that true.
-- **`src/runtime-helpers.lisp`** — `rt-plist-put`/`rt-slot-set`, the generic
-  plist and slot helpers cl-cc/parse and cl-cc/expand call while building the
-  early parser/expander machinery, before cl-cc/runtime is loaded.
-- **`src/backend-protocol.lisp`** — `cl-cc/backend-protocol`, the registry a
-  language backend registers itself with. It exists so `cl-cc/pipeline` never
-  names a backend's package: PHP and JavaScript answer for their own bridge
-  symbols and VM integration rather than being scanned from outside. See §5-1
-  of cl-cc's `docs/notes/repo-split-design.md`.
+- **`src/package.lisp` and `src/symbols/package.lisp`** — the bootstrap
+  package manifest and shared symbol feature. cl-cc compiles itself, so its
+  compiler stages need the same pre-interned symbols; parse also generates
+  calls to `rt-plist-put` and `rt-slot-set`, whose host implementations are
+  installed by the `cl-cc-vm` bridge.
+- **`src/backend-protocol/`** — `cl-cc/backend-protocol`, the registry a
+  language backend registers itself with. The pipeline asks the registry for
+  backend capabilities without naming backend packages; each language backend
+  supplies its own VM bridge symbols and integration.
 
-It holds no VM code on purpose. The registry is a `defvar`, a pair of
-CPS lookup/registration functions, a handful of generic functions built on
-one shared `define-backend-hook` macro, and a capability struct built on
-`define-capability-struct`; the pipeline is the only participant that
-depends on `cl-cc/vm`, so calling `vm-register-host-bridge` stays there.
+It holds no VM code on purpose. The backend protocol provides registry
+operations, hooks with safe defaults, and a struct for optional VM
+capabilities. The pipeline is the only participant that depends on `cl-cc/vm`,
+so it alone calls `vm-register-host-bridge`.
 
 ## Quick Start
 
 ```lisp
+(require :asdf)
 (asdf:load-system "cl-cc-bootstrap")
 
 (defclass my-backend () ())
@@ -42,14 +38,22 @@ depends on `cl-cc/vm`, so calling `vm-register-host-bridge` stays there.
 (cl-cc/backend-protocol:register-backend :my-language (make-instance 'my-backend))
 ```
 
+This is an illustrative sketch; replace the example class, package, symbols,
+and language with those from your backend.
+
 ## Install
 
 ```sh
 nix build github:nerima-lisp/cl-cc-bootstrap
 ```
 
+The flake currently exposes Nix outputs for `x86_64-linux`; use plain ASDF on
+other hosts.
+
 or point `CL_SOURCE_REGISTRY` at a checkout and
-`(asdf:load-system "cl-cc-bootstrap")`.
+load it with `(require :asdf)` and `(asdf:load-system "cl-cc-bootstrap")`.
+See [Getting Started](docs/src/getting-started.md) for the source-registry
+setting.
 
 ## Documentation
 
@@ -77,6 +81,3 @@ Report vulnerabilities privately through
 [GitHub Security Advisories](https://github.com/nerima-lisp/cl-cc-bootstrap/security/advisories/new),
 not as public issues.
 
-## License
-
-MIT. See [LICENSE](LICENSE).

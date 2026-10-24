@@ -6,6 +6,9 @@
 nix build github:nerima-lisp/cl-cc-bootstrap
 ```
 
+The flake currently exposes Nix outputs for `x86_64-linux`; use plain ASDF on
+other hosts.
+
 Add it as a flake input to depend on it from another package:
 
 ```nix
@@ -16,14 +19,25 @@ inputs.cl-cc-bootstrap = {
 ```
 
 Pin to a release tag, not the default branch, so an upstream change cannot
-break your build without warning.
+break your build without warning. Use
+`cl-cc-bootstrap.packages.<system>.default` in the consumer's build inputs, and
+add `${cl-cc-bootstrap}//` to its `CL_SOURCE_REGISTRY` so ASDF can find the
+system.
 
 ## Install with plain ASDF
 
-Point `CL_SOURCE_REGISTRY` (or an ASDF source-registry config) at a checkout,
-then:
+Point `CL_SOURCE_REGISTRY` at a checkout. Replace `/path/to/cl-cc-bootstrap`
+with its path. The `//` suffix searches the tree
+recursively; the trailing `:` keeps the rest of the configured registry:
+
+```sh
+export CL_SOURCE_REGISTRY="/path/to/cl-cc-bootstrap//:${CL_SOURCE_REGISTRY:-}"
+```
+
+Then load the system:
 
 ```lisp
+(require :asdf)
 (asdf:load-system "cl-cc-bootstrap")
 ```
 
@@ -31,7 +45,7 @@ then:
 
 | System | Purpose |
 | --- | --- |
-| `cl-cc-bootstrap` | The library: `package`, `runtime-helpers`, `backend-protocol`. Depends on nothing. |
+| `cl-cc-bootstrap` | The library: `package`, `symbols`, and `backend-protocol`. Depends on nothing. |
 | `cl-cc-bootstrap/test` | The test suite. Depends on `cl-cc-bootstrap`, [`cl-weave`](https://github.com/nerima-lisp/cl-weave), and [`cl-host-kit`](https://github.com/nerima-lisp/cl-host-kit) (test-only). |
 
 ## Register a backend
@@ -39,7 +53,11 @@ then:
 A compiled-language frontend registers itself once, at load time, instead of
 the pipeline naming its package:
 
+This is an illustrative sketch. Define and export the example package and
+helper symbols in your backend before evaluating it.
+
 ```lisp
+(require :asdf)
 (asdf:load-system "cl-cc-bootstrap")
 
 (defclass my-backend () ())
@@ -67,8 +85,9 @@ an existence check first.
 
 ## Dispatch by continuation
 
-`call-with-registered-backend` is the same lookup restated as CPS dispatch on
-presence, for callers that would otherwise branch on a possibly-NIL result:
+`call-with-registered-backend` dispatches on presence for callers that would
+otherwise branch on a possibly-`nil` result. A continuation is a callback for
+one outcome; this function calls `found` or `not-found` once:
 
 ```lisp
 (cl-cc/backend-protocol:call-with-registered-backend
@@ -76,9 +95,6 @@ presence, for callers that would otherwise branch on a possibly-NIL result:
  (lambda (backend) (format t "found: ~A~%" backend))
  (lambda () (format t "no backend registered~%")))
 ```
-
-`registered-backend` is defined in terms of this, continuing with `#'identity`
-and a `NIL`-returning thunk.
 
 ## VM integration
 
@@ -95,6 +111,8 @@ A backend whose host runtime can be handed a compiled closure (JavaScript's
 `integration` is a `vm-integration` struct of closures (`call-closure`,
 `global-value`, ...) supplied by the pipeline; a backend that never re-enters
 the VM needs no method at all, since the default does nothing.
+The pipeline calls this hook once after loading the backend runtime and before
+compiled code runs.
 
 ## Next steps
 

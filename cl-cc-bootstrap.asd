@@ -1,8 +1,8 @@
 ;;;; cl-cc-bootstrap.asd — pre-interned bootstrap symbols and the backend protocol
 ;;;;
 ;;;; Extracted from the cl-cc monorepo. The system loads its bootstrap symbol
-;;;; home first, then early runtime helpers, then the symbols and backend-
-;;;; protocol feature packages. Compiler stages share the pre-interned symbols;
+;;;; home first, then the symbols and backend-protocol feature packages.
+;;;; Compiler stages share the pre-interned symbols;
 ;;;; backends register through the protocol without cl-cc/pipeline naming their
 ;;;; packages (see cl-cc docs/notes/repo-split-design.md §5-1).
 ;;; This form comes first, before any defsystem. ASDF binds *package* to
@@ -25,7 +25,6 @@
   :pathname "src"
   :serial t
   :components ((:file "package")
-               (:file "runtime-helpers")
                (:module "symbols"
                 :serial t
                 :components ((:file "package")))
@@ -48,7 +47,6 @@
   :pathname "t"
   :serial t
   :components ((:file "package")
-               (:file "runtime-helpers-test")
                (:module "symbols"
                 :serial t
                 :components ((:file "export-surface-test")))
