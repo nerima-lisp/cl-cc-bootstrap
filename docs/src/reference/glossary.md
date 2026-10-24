@@ -5,13 +5,17 @@
 - Purpose: Makes the pre-interned symbols shared across compiler stages
   available from a dedicated feature package.
 - Package: `cl-cc/bootstrap/symbols`
+- Key types: None.
+- Key functions: None.
 - Use `cl-cc/bootstrap/symbols` to import these shared names. Their symbol
   objects keep `cl-cc/bootstrap` as their home package so compiler stages refer
   to the same objects.
 
 ## backend-protocol
 
-- Canonical package: `cl-cc/bootstrap/backend-protocol` owns these API symbols.
+- Package: `cl-cc/bootstrap/backend-protocol`
+- Key types: `VM-INTEGRATION`
+- Key functions: `REGISTER-BACKEND-BRIDGE-PROVIDER`, `BACKEND-BRIDGE-PROVIDERS`, `REGISTER-BACKEND-VM-INTEGRATION-INSTALLER`, `BACKEND-VM-INTEGRATION-INSTALLERS`, `REGISTER-BACKEND-GLOBAL-SEEDER`, `BACKEND-GLOBAL-SEEDERS`, `REGISTER-BACKEND-PARSER`, `FIND-BACKEND-PARSER`, `REGISTER-BACKEND-INPUT-VALIDATOR`, `FIND-BACKEND-INPUT-VALIDATOR`, `REGISTER-BACKEND`, `CALL-WITH-BACKEND-REGISTRATION`, `REGISTERED-BACKEND`, `CALL-WITH-REGISTERED-BACKEND`, `BACKEND-BRIDGE-SYMBOLS`, `BACKEND-GLOBAL-SYMBOLS`, `MAKE-VM-INTEGRATION`, `VM-INTEGRATION-P`, `VM-INTEGRATION-CLOSURE-P`, `VM-INTEGRATION-CALL-CLOSURE`, `VM-INTEGRATION-GLOBAL-BOUND-P`, `VM-INTEGRATION-GLOBAL-VALUE`, `VM-INTEGRATION-SET-GLOBAL`, `VM-INTEGRATION-REMOVE-GLOBAL`, `INSTALL-BACKEND-VM-INTEGRATION`
 - Facades:
   - Use `cl-cc/bootstrap` for hook registration and lookup:
     `REGISTER-BACKEND-BRIDGE-PROVIDER`, `BACKEND-BRIDGE-PROVIDERS`,

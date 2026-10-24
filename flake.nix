@@ -223,8 +223,16 @@
             exportSurface = "t/export-surface.txt";
             mode = "transition";
             legacyInternalRefs = "t/legacy-internal-refs.sexp";
-            forbiddenNames = [ "phases" "misc" "utils" "helpers" ];
-            numberedPrefixes = [ "FR-" "W" ];
+            forbiddenNames = [
+              "phases"
+              "misc"
+              "utils"
+              "helpers"
+            ];
+            numberedPrefixes = [
+              "FR-"
+              "W"
+            ];
             packagePrefix = "cl-cc/bootstrap/";
             infraSuffix = "/infra";
           };
