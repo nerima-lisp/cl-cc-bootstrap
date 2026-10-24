@@ -22,18 +22,21 @@
                        '(a b)))
                      (it
                       "returns a fresh list, so a caller cannot mutate the registry"
-                      (cl-cc/bootstrap/backend-protocol:register-backend-bridge-provider
-                       (lambda ()
-                         (list (cons 'a #'identity))))
-                      (let ((first-call
-                             (cl-cc/bootstrap/backend-protocol:backend-bridge-providers)))
-                        (setf (car first-call) (cons 'clobbered #'identity))
-                        (expect
-                         (car
-                          (first
-                           (cl-cc/bootstrap/backend-protocol:backend-bridge-providers)))
-                         :to-be
-                         'a)))
+                      (let* ((entry (cons 'a #'identity))
+                             (entries (list entry)))
+                        (cl-cc/bootstrap/backend-protocol:register-backend-bridge-provider
+                         (lambda ()
+                           entries))
+                        (let ((first-call
+                               (cl-cc/bootstrap/backend-protocol:backend-bridge-providers)))
+                          (setf (car first-call) (cons 'clobbered #'identity))
+                          (expect (first entries)
+                                  :to-be
+                                  entry)
+                          (expect
+                           (first (cl-cc/bootstrap/backend-protocol:backend-bridge-providers))
+                           :to-be
+                           entry))))
                      (it "returns nothing when no backend has registered"
                          (expect
                           (cl-cc/bootstrap/backend-protocol:backend-bridge-providers)
